@@ -63,7 +63,15 @@ describe("Mediator VLC read sound — init", () => {
             "container": container
         });
 
+        strictEqual(spawn.calls.length, 0);
+
+        await mediator.readSound({}, {
+            "sound": "sound.mp3"
+        });
+
+        strictEqual(spawn.calls.length, 1);
         strictEqual(0 < logs.length, true);
+        strictEqual(logs[0].includes(process.execPath), true);
 
         await mediator.release();
 

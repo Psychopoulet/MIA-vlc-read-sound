@@ -14,7 +14,7 @@
 
 describe("VLC", () => {
 
-    it("should probe availability with headless flags", async () => {
+    it("should report available when the binary exists without spawning", async () => {
 
         const spawn = createSpawnMock();
         const vlc = new VLC({
@@ -23,26 +23,26 @@ describe("VLC", () => {
         });
 
         strictEqual(await vlc.isAvailable(), true);
-        strictEqual(spawn.calls.length, 1);
-        strictEqual(spawn.calls[0].args.includes(QUIT_MRL), true);
-        strictEqual(spawn.calls[0].args.join(" "), [ ...PLAY_FLAGS, QUIT_MRL ].join(" "));
-        strictEqual(spawn.calls[0].spawnOptions.stdio, "ignore");
+        strictEqual(spawn.calls.length, 0);
+        strictEqual(await vlc.isAvailable(), true);
+        strictEqual(spawn.calls.length, 0);
 
     });
 
-    it("should return false when availability probe fails", async () => {
+    it("should return false when the binary is missing", async () => {
 
-        const spawn = createSpawnMock({
-            "exitCode": 1,
-            "stderr": "probe failed"
-        });
-
+        const spawn = createSpawnMock();
         const vlc = new VLC({
-            "binary": process.execPath,
+            "binary": "/missing/vlc",
+            "env": {
+                "PATH": ""
+            },
+            "platform": "linux",
             "spawn": spawn
         });
 
         strictEqual(await vlc.isAvailable(), false);
+        strictEqual(spawn.calls.length, 0);
 
     });
 
@@ -124,26 +124,6 @@ describe("VLC", () => {
 
     });
 
-    it("should log debug messages when probing availability", async () => {
-
-        const logs = [];
-        const spawn = createSpawnMock();
-
-        const vlc = new VLC({
-            "binary": process.execPath,
-            "spawn": spawn,
-            "debug": (message) => {
-                logs.push(message);
-            }
-        });
-
-        await vlc.isAvailable();
-
-        strictEqual(logs.length, 1);
-        strictEqual(logs[0], process.execPath + " " + [ ...PLAY_FLAGS, QUIT_MRL ].join(" "));
-
-    });
-
     it("should log debug messages when configured", async () => {
 
         const logs = [];
@@ -161,6 +141,7 @@ describe("VLC", () => {
 
         strictEqual(logs.length, 1);
         strictEqual(logs[0].includes(process.execPath), true);
+        strictEqual(logs[0].includes("sound.mp3"), true);
 
     });
 

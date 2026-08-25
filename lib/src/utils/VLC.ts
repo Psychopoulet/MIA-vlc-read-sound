@@ -2,8 +2,16 @@
 
     // natives
     import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
-    import { access, constants } from "node:fs/promises";
-    import { delimiter, extname, isAbsolute, join } from "node:path";
+    import { delimiter, extname, join } from "node:path";
+
+    // externals
+    import { isFile } from "node-pluginsmanager-plugin";
+
+    // locals
+    import firstExisting from "./firstExisting";
+    import looksLikeFilePath from "./looksLikeFilePath";
+    import playFlagsFor from "./playFlagsFor";
+    import pushUnique from "./pushUnique";
 
 // types & interfaces
 
@@ -17,21 +25,7 @@
 
 // consts
 
-    export const PLAY_FLAGS: string[] = [
-        "--intf",
-        "dummy",
-        "--dummy-quiet",
-        "--no-video",
-        "--no-osd",
-        "--no-spu",
-        "--no-interact",
-        "--quiet",
-        "--play-and-exit",
-        "--no-volume-save",
-        "--audio-visual=none"
-    ];
-
-    export const QUIT_MRL: string = "vlc://quit";
+    const QUIT_MRL: string = "vlc://quit";
 
     const SPAWN_OPTIONS: SpawnOptions = {
         "windowsHide": true,
@@ -41,54 +35,6 @@
             "pipe"
         ]
     };
-
-// private
-
-    function _defaultEnv (): NodeJS.ProcessEnv {
-
-        return process.env; // eslint-disable-line n/no-process-env
-
-    }
-
-    function _pushUnique (candidates: string[], value: string | undefined): void {
-
-        if ("string" === typeof value && "" !== value && !candidates.includes(value)) {
-            candidates.push(value);
-        }
-
-    }
-
-    function _looksLikeFilePath (candidate: string): boolean {
-
-        return isAbsolute(candidate) || candidate.includes("/") || candidate.includes("\\");
-
-    }
-
-    function _fileExists (file: string): Promise<boolean> {
-
-        return access(file, constants.F_OK).then((): boolean => {
-            return true;
-        }).catch((): boolean => {
-            return false;
-        });
-
-    }
-
-    function _firstExisting (files: string[]): Promise<string | null> {
-
-        if (0 === files.length) {
-            return Promise.resolve(null);
-        }
-
-        const file: string = files[0];
-
-        return _fileExists(file).then((exists: boolean): Promise<string | null> => {
-
-            return exists ? Promise.resolve(file) : _firstExisting(files.slice(1));
-
-        });
-
-    }
 
 // module
 
@@ -111,7 +57,7 @@ export default class VLC {
 
         this._binaryHint = options.binary;
         this._debug = options.debug;
-        this._env = options.env ?? _defaultEnv();
+        this._env = options.env ?? process.env; // eslint-disable-line n/no-process-env
         this._platform = options.platform ?? process.platform;
         this._spawn = options.spawn ?? spawn;
 
@@ -149,7 +95,7 @@ export default class VLC {
         return this._resolveBinary().then((binary: string): Promise<void> => {
 
             return this._execute(binary, [
-                ...PLAY_FLAGS,
+                ...playFlagsFor(this._platform),
                 sound,
                 QUIT_MRL
             ]).then((): Promise<void> => {
@@ -186,11 +132,11 @@ export default class VLC {
 
         const candidates: string[] = [];
 
-        _pushUnique(candidates, this._binaryHint);
-        _pushUnique(candidates, this._env.VLC_PATH);
+        pushUnique(candidates, this._binaryHint);
+        pushUnique(candidates, this._env.VLC_PATH);
 
         this._platformDefaults().forEach((value: string): void => {
-            _pushUnique(candidates, value);
+            pushUnique(candidates, value);
         });
 
         return candidates;
@@ -247,9 +193,9 @@ export default class VLC {
 
     private _locateCandidate (candidate: string): Promise<string | null> {
 
-        if (_looksLikeFilePath(candidate)) {
+        if (looksLikeFilePath(candidate)) {
 
-            return _fileExists(candidate).then((exists: boolean): string | null => {
+            return isFile(candidate).then((exists: boolean): string | null => {
                 return exists ? candidate : null;
             });
 
@@ -276,7 +222,7 @@ export default class VLC {
 
         });
 
-        return _firstExisting(files);
+        return firstExisting(files);
 
     }
 
